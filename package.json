@@ -1,19 +1,22 @@
 {
   "name": "proga-naandro",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "update": "eas update --branch production"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
     "@supabase/supabase-js": "2.49.4",
     "expo": "~53.0.0",
+    "expo-image-picker": "~16.1.4",
     "expo-status-bar": "~2.2.3",
+    "expo-updates": "~0.28.17",
     "react": "19.0.0",
     "react-native": "0.79.5",
     "react-native-url-polyfill": "^2.0.0"

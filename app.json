@@ -2,19 +2,17 @@
   "expo": {
     "name": "Тихий чат",
     "slug": "proga-naandro",
-    "version": "0.1.0",
+    "version": "0.2.0",
+    "runtimeVersion": { "policy": "appVersion" },
+    "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.faber105.proganaandro",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "backgroundColor": "#F4F2EB"
-      }
+      "versionCode": 2,
+      "adaptiveIcon": { "backgroundColor": "#F4F2EB" }
     },
-    "plugins": [],
-    "extra": {
-      "minAndroidSdk": 24
-    }
+    "plugins": [["expo-image-picker", { "photosPermission": "Разрешите выбрать аватар для профиля." }]],
+    "extra": { "minAndroidSdk": 24 }
   }
 }
