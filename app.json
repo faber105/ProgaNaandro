@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Тихий чат",
-    "slug": "eryukrkeyu",
+    "slug": "eryukrkeuy",
     "version": "0.2.0",
     "runtimeVersion": { "policy": "appVersion" },
     "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
