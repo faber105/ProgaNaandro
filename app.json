@@ -7,9 +7,11 @@
     "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "orientation": "portrait",
     "android": {
       "package": "com.faber105.proganaandro",
       "versionCode": 2,
+      "minSdkVersion": 24,
       "adaptiveIcon": { "backgroundColor": "#F4F2EB" }
     },
     "plugins": [["expo-image-picker", { "photosPermission": "Разрешите выбрать аватар для профиля." }]],
