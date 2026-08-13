@@ -19,6 +19,11 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - name: Validate Android JavaScript bundle
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://vxqdwdkzaryrvmhjwsdh.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: npx expo export --platform android --output-dir dist
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -26,5 +31,5 @@ jobs:
       - name: Build preview APK
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://vxqdwdkzaryrvmhjwsdh.supabase.co
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: BT0Ijoj3Fur3uQ_UwufLBpvLBohFCrB9ulTiTpXY
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: eas build --platform android --profile preview --non-interactive
