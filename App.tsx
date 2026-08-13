@@ -1,256 +1,32 @@
 import 'react-native-url-polyfill/auto';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
-});
+const supabase=createClient(process.env.EXPO_PUBLIC_SUPABASE_URL??'',process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY??'',{auth:{storage:AsyncStorage,autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
+type Profile={id:string;nickname:string;avatar_url:string|null};
+type Room={id:string;name:string;description:string};
+type Message={id:string;user_id:string;nickname:string;body:string;created_at:string;room_id:string|null;conversation_id:string|null};
+type Target={kind:'room'|'dm';id:string;title:string;avatar?:string|null};
+const C={bg:'#F4F2EB',surface:'#FAF8F2',ink:'#1D1A22',muted:'#797480',line:'#DDD8CD',accent:'#5A43C6',soft:'#E7E2D8',danger:'#A23747'};
 
-type Message = {
-  id: string;
-  user_id: string;
-  nickname: string;
-  body: string;
-  created_at: string;
-};
-
-const NICK_KEY = 'anonymous-chat-nickname';
-
-export default function App() {
-  const [nickname, setNickname] = useState('');
-  const [draftNick, setDraftNick] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [text, setText] = useState('');
-  const [userId, setUserId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
-  const listRef = useRef<FlatList<Message>>(null);
-
-  const configured = Boolean(supabaseUrl && supabaseAnonKey);
-
-  useEffect(() => {
-    void boot();
-  }, []);
-
-  async function boot() {
-    if (!configured) {
-      setError('Сервер ещё не настроен. Добавьте ключи Supabase в .env.');
-      setLoading(false);
-      return;
-    }
-
-    const savedNick = await AsyncStorage.getItem(NICK_KEY);
-    if (savedNick) setNickname(savedNick);
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    let id = sessionData.session?.user.id;
-    if (!id) {
-      const { data, error: authError } = await supabase.auth.signInAnonymously();
-      if (authError) {
-        setError('Не удалось войти анонимно. Проверьте настройки Supabase.');
-        setLoading(false);
-        return;
-      }
-      id = data.user?.id;
-    }
-    if (id) setUserId(id);
-
-    const { data, error: loadError } = await supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: true })
-      .limit(200);
-
-    if (loadError) setError('Не удалось загрузить сообщения.');
-    else setMessages((data as Message[]) ?? []);
-
-    supabase
-      .channel('public-chat')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        const next = payload.new as Message;
-        setMessages((current) => current.some((item) => item.id === next.id) ? current : [...current, next]);
-      })
-      .subscribe();
-
-    setLoading(false);
-  }
-
-  async function saveNickname() {
-    const clean = draftNick.trim().replace(/\s+/g, ' ').slice(0, 24);
-    if (clean.length < 2) {
-      setError('Ник должен быть минимум из 2 символов.');
-      return;
-    }
-    await AsyncStorage.setItem(NICK_KEY, clean);
-    setNickname(clean);
-    setError('');
-  }
-
-  async function send() {
-    const body = text.trim().slice(0, 1000);
-    if (!body || !nickname || !userId || sending) return;
-    setSending(true);
-    setText('');
-    const { error: sendError } = await supabase.from('messages').insert({
-      user_id: userId,
-      nickname,
-      body,
-    });
-    if (sendError) {
-      setText(body);
-      setError('Сообщение не отправилось. Попробуйте ещё раз.');
-    } else {
-      setError('');
-    }
-    setSending(false);
-  }
-
-  const header = useMemo(() => (
-    <View style={styles.header}>
-      <View>
-        <Text style={styles.eyebrow}>ОБЩАЯ КОМНАТА</Text>
-        <Text style={styles.title}>Тихий чат</Text>
-      </View>
-      <View style={styles.online}><View style={styles.dot} /><Text style={styles.onlineText}>онлайн</Text></View>
-    </View>
-  ), []);
-
-  if (loading) {
-    return <SafeAreaView style={styles.center}><ActivityIndicator color="#5A43C6" /><Text style={styles.muted}>Подключаемся…</Text></SafeAreaView>;
-  }
-
-  if (!nickname) {
-    return (
-      <SafeAreaView style={styles.onboarding}>
-        <StatusBar style="dark" />
-        <Text style={styles.mark}>ТЧ</Text>
-        <View style={styles.intro}>
-          <Text style={styles.eyebrow}>БЕЗ ПРОФИЛЯ. БЕЗ ЛИШНЕГО.</Text>
-          <Text style={styles.hero}>Выберите ник и заходите.</Text>
-          <Text style={styles.description}>Другие увидят только ваш ник. Не используйте настоящее имя, если хотите остаться анонимным.</Text>
-        </View>
-        <View style={styles.nickArea}>
-          <TextInput
-            value={draftNick}
-            onChangeText={setDraftNick}
-            placeholder="Например, ЛунныйКот"
-            placeholderTextColor="#8E8A99"
-            maxLength={24}
-            autoCapitalize="none"
-            style={styles.nickInput}
-            onSubmitEditing={saveNickname}
-          />
-          {!!error && <Text style={styles.error}>{error}</Text>}
-          <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={saveNickname}>
-            <Text style={styles.primaryText}>Войти в чат</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.page}>
-      <StatusBar style="dark" />
-      {header}
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={messages.length ? styles.list : styles.emptyList}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={<View><Text style={styles.emptyTitle}>Здесь пока тихо.</Text><Text style={styles.muted}>Напишите первое сообщение.</Text></View>}
-        renderItem={({ item }) => {
-          const mine = item.user_id === userId;
-          return (
-            <View style={[styles.messageRow, mine && styles.messageRowMine]}>
-              <Text style={styles.author}>{mine ? 'вы' : item.nickname}</Text>
-              <View style={[styles.bubble, mine && styles.bubbleMine]}>
-                <Text style={[styles.body, mine && styles.bodyMine]}>{item.body}</Text>
-              </View>
-            </View>
-          );
-        }}
-      />
-      {!!error && <Text style={styles.chatError}>{error}</Text>}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.composer}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={`Сообщение от ${nickname}`}
-            placeholderTextColor="#8E8A99"
-            multiline
-            maxLength={1000}
-            style={styles.composerInput}
-          />
-          <Pressable
-            accessibilityLabel="Отправить сообщение"
-            disabled={!text.trim() || sending}
-            onPress={send}
-            style={({ pressed }) => [styles.send, (!text.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}
-          >
-            <Text style={styles.sendText}>↑</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+function Avatar({profile,size=46}:{profile:Partial<Profile>;size?:number}){return profile.avatar_url?<Image source={{uri:profile.avatar_url}} style={{width:size,height:size,borderRadius:size/2,backgroundColor:C.soft}}/>:<View style={[s.avatar,{width:size,height:size,borderRadius:size/2}]}><Text style={[s.avatarText,{fontSize:size*.36}]}>{(profile.nickname||'?').slice(0,1).toUpperCase()}</Text></View>}
+export default function App(){
+ const [me,setMe]=useState<Profile|null>(null),[uid,setUid]=useState(''),[rooms,setRooms]=useState<Room[]>([]),[people,setPeople]=useState<Profile[]>([]),[messages,setMessages]=useState<Message[]>([]),[target,setTarget]=useState<Target|null>(null),[tab,setTab]=useState<'rooms'|'people'|'profile'>('rooms'),[draft,setDraft]=useState(''),[nick,setNick]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''); const list=useRef<FlatList<Message>>(null);
+ useEffect(()=>{void boot();return()=>{void supabase.removeAllChannels()}},[]);
+ async function boot(){const {data:{session}}=await supabase.auth.getSession();let user=session?.user;if(!user){const r=await supabase.auth.signInAnonymously();user=r.data.user??undefined;if(r.error){setError('Не удалось подключиться к серверу');setLoading(false);return}} if(!user)return;setUid(user.id);const p=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle();if(p.data){setMe(p.data);setNick(p.data.nickname)} const [rr,pp]=await Promise.all([supabase.from('rooms').select('*').order('created_at'),supabase.from('profiles').select('*').neq('id',user.id).order('nickname')]);setRooms(rr.data??[]);setPeople(pp.data??[]);supabase.channel('chat-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},payload=>{const m=payload.new as Message;setMessages(v=>v.some(x=>x.id===m.id)?v:[...v,m])}).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>void refreshPeople(user!.id)).subscribe();setLoading(false)}
+ async function refreshPeople(id=uid){const r=await supabase.from('profiles').select('*').neq('id',id).order('nickname');setPeople(r.data??[])}
+ async function saveProfile(){const clean=nick.trim().replace(/\s+/g,' ').slice(0,24);if(clean.length<2){setError('Ник минимум 2 символа');return}const r=await supabase.from('profiles').upsert({id:uid,nickname:clean,avatar_url:me?.avatar_url??null,updated_at:new Date().toISOString()}).select().single();if(r.error){setError(r.error.code==='23505'?'Этот ник уже занят':'Не удалось сохранить профиль');return}setMe(r.data);setError('');await refreshPeople()}
+ async function chooseAvatar(){const p=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!p.granted){setError('Разреши доступ к фотографиям');return}const r=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],allowsEditing:true,aspect:[1,1],quality:.72});if(r.canceled)return;const blob=await(await fetch(r.assets[0].uri)).blob();const path=`${uid}/avatar.jpg`;const up=await supabase.storage.from('avatars').upload(path,blob,{contentType:'image/jpeg',upsert:true});if(up.error){setError('Не удалось загрузить аватар');return}const url=supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl+`?v=${Date.now()}`;const next={id:uid,nickname:nick.trim()||me?.nickname||'Гость',avatar_url:url};await supabase.from('profiles').upsert(next);setMe(next);setError('')}
+ async function open(t:Target){setTarget(t);const q=supabase.from('messages').select('*').order('created_at',{ascending:true}).limit(300);const r=t.kind==='room'?await q.eq('room_id',t.id):await q.eq('conversation_id',t.id);setMessages(r.data??[])}
+ async function dm(p:Profile){const r=await supabase.rpc('start_dm',{target:p.id});if(r.error){setError('Не удалось открыть личный чат');return}await open({kind:'dm',id:r.data,title:p.nickname,avatar:p.avatar_url})}
+ async function send(){const body=draft.trim().slice(0,1000);if(!body||!target||!me)return;setDraft('');const row:any={user_id:uid,nickname:me.nickname,body,room_id:null,conversation_id:null};row[target.kind==='room'?'room_id':'conversation_id']=target.id;const r=await supabase.from('messages').insert(row);if(r.error){setDraft(body);setError('Сообщение не отправилось')}}
+ if(loading)return <SafeAreaView style={s.center}><ActivityIndicator color={C.accent}/><Text style={s.muted}>Подключаемся…</Text></SafeAreaView>;
+ if(!me)return <SafeAreaView style={s.onboard}><StatusBar style="dark"/><Text style={s.logo}>ТЧ</Text><View><Text style={s.kicker}>АНОНИМНОЕ ОБЩЕНИЕ</Text><Text style={s.hero}>Как тебя будут видеть?</Text><Text style={s.copy}>Только ник и выбранный аватар. Настоящее имя не требуется.</Text></View><View style={s.stack}><TextInput value={nick} onChangeText={setNick} maxLength={24} placeholder="Например, ЛунныйКот" placeholderTextColor="#8E8A99" style={s.input}/>{!!error&&<Text style={s.err}>{error}</Text>}<Pressable onPress={saveProfile} style={s.primary}><Text style={s.primaryText}>Создать профиль</Text></Pressable></View></SafeAreaView>;
+ if(target)return <SafeAreaView style={s.page}><StatusBar style="dark"/><View style={s.chatHead}><Pressable onPress={()=>setTarget(null)} style={s.back}><Text style={s.backText}>‹</Text></Pressable>{target.kind==='dm'&&<Avatar profile={{nickname:target.title,avatar_url:target.avatar}} size={40}/>}<View style={{flex:1}}><Text style={s.kicker}>{target.kind==='room'?'КОМНАТА':'ЛИЧНЫЙ ЧАТ'}</Text><Text style={s.title}>{target.title}</Text></View></View><FlatList ref={list} data={messages.filter(m=>target.kind==='room'?m.room_id===target.id:m.conversation_id===target.id)} keyExtractor={m=>m.id} contentContainerStyle={s.msgs} onContentSizeChange={()=>list.current?.scrollToEnd({animated:true})} ListEmptyComponent={<View style={s.empty}><Text style={s.emptyTitle}>Пока тихо</Text><Text style={s.muted}>Начни разговор первым.</Text></View>} renderItem={({item})=>{const mine=item.user_id===uid;const p=people.find(x=>x.id===item.user_id);return <View style={[s.msgRow,mine&&s.msgMine]}>{!mine&&<Text style={s.author}>{item.nickname}</Text>}<View style={[s.bubble,mine&&s.bubbleMine]}><Text style={[s.body,mine&&s.bodyMine]}>{item.body}</Text></View></View>}}/><KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined}><View style={s.composer}><TextInput value={draft} onChangeText={setDraft} placeholder="Сообщение" placeholderTextColor="#8E8A99" multiline maxLength={1000} style={s.composeInput}/><Pressable onPress={send} disabled={!draft.trim()} style={[s.send,!draft.trim()&&s.disabled]}><Text style={s.sendText}>↑</Text></Pressable></View></KeyboardAvoidingView></SafeAreaView>;
+ return <SafeAreaView style={s.page}><StatusBar style="dark"/><View style={s.top}><View><Text style={s.kicker}>{tab==='rooms'?'ОБЩЕНИЕ':tab==='people'?'ЛЮДИ':'НАСТРОЙКИ'}</Text><Text style={s.bigTitle}>{tab==='rooms'?'Комнаты':tab==='people'?'Личные сообщения':'Профиль'}</Text></View><Avatar profile={me}/></View><ScrollView contentContainerStyle={s.content}>{tab==='rooms'&&rooms.map((r,i)=><Pressable key={r.id} onPress={()=>open({kind:'room',id:r.id,title:r.name})} style={s.item}><View style={[s.roomIcon,{backgroundColor:i%2?C.soft:'#E5E0F5'}]}><Text style={s.roomEmoji}>{i===0?'⌁':i===1?'☺':'♟'}</Text></View><View style={s.itemText}><Text style={s.itemTitle}>{r.name}</Text><Text style={s.muted}>{r.description}</Text></View><Text style={s.chev}>›</Text></Pressable>)}{tab==='people'&&(people.length?people.map(p=><Pressable key={p.id} onPress={()=>dm(p)} style={s.item}><Avatar profile={p}/><View style={s.itemText}><Text style={s.itemTitle}>{p.nickname}</Text><Text style={s.muted}>написать лично</Text></View><Text style={s.chev}>›</Text></Pressable>):<View style={s.empty}><Text style={s.emptyTitle}>Никого ещё нет</Text><Text style={s.muted}>Пользователи появятся после первого входа.</Text></View>)}{tab==='profile'&&<View style={s.profile}><Pressable onPress={chooseAvatar}><Avatar profile={me} size={92}/><Text style={s.avatarAction}>сменить аватар</Text></Pressable><TextInput value={nick} onChangeText={setNick} maxLength={24} style={s.input}/>{!!error&&<Text style={s.err}>{error}</Text>}<Pressable onPress={saveProfile} style={s.primary}><Text style={s.primaryText}>Сохранить</Text></Pressable><Text style={s.note}>Другие видят только этот ник и аватар.</Text></View>}</ScrollView><View style={s.tabs}>{[['rooms','⌂','Комнаты'],['people','✉','Личные'],['profile','●','Профиль']].map(x=><Pressable key={x[0]} onPress={()=>setTab(x[0] as any)} style={s.tab}><Text style={[s.tabIcon,tab===x[0]&&s.tabOn]}>{x[1]}</Text><Text style={[s.tabText,tab===x[0]&&s.tabOn]}>{x[2]}</Text></Pressable>)}</View></SafeAreaView>
 }
-
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F4F2EB' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#F4F2EB' },
-  onboarding: { flex: 1, paddingHorizontal: 24, paddingVertical: 32, justifyContent: 'space-between', backgroundColor: '#F4F2EB' },
-  mark: { width: 52, height: 52, paddingTop: 14, textAlign: 'center', overflow: 'hidden', borderRadius: 18, backgroundColor: '#1D1A22', color: '#F4F2EB', fontSize: 16, fontWeight: '800' },
-  intro: { gap: 16 },
-  eyebrow: { color: '#5A43C6', fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1.2 },
-  hero: { color: '#1D1A22', fontSize: 44, lineHeight: 48, fontWeight: '800', letterSpacing: -1.4 },
-  description: { color: '#625E69', fontSize: 17, lineHeight: 26, maxWidth: 520 },
-  nickArea: { gap: 12 },
-  nickInput: { minHeight: 56, borderWidth: 1, borderColor: '#D6D1C7', borderRadius: 18, paddingHorizontal: 18, backgroundColor: '#FAF8F2', color: '#1D1A22', fontSize: 17 },
-  primary: { minHeight: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#5A43C6' },
-  primaryText: { color: '#F9F7FF', fontSize: 16, fontWeight: '800' },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
-  error: { color: '#A23747', fontSize: 14, lineHeight: 20 },
-  header: { minHeight: 88, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#DDD8CD' },
-  title: { color: '#1D1A22', fontSize: 24, lineHeight: 30, fontWeight: '800', letterSpacing: -0.5 },
-  online: { flexDirection: 'row', gap: 7, alignItems: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2F936F' },
-  onlineText: { color: '#625E69', fontSize: 13, fontWeight: '600' },
-  list: { paddingHorizontal: 16, paddingVertical: 24, gap: 18 },
-  emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { color: '#1D1A22', fontSize: 24, lineHeight: 30, fontWeight: '800', marginBottom: 4 },
-  muted: { color: '#797480', fontSize: 15, lineHeight: 22 },
-  messageRow: { maxWidth: '84%', alignSelf: 'flex-start', gap: 5 },
-  messageRowMine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
-  author: { color: '#797480', fontSize: 12, lineHeight: 16, fontWeight: '700', paddingHorizontal: 6 },
-  bubble: { borderRadius: 20, borderBottomLeftRadius: 6, backgroundColor: '#E7E2D8', paddingHorizontal: 15, paddingVertical: 11 },
-  bubbleMine: { borderBottomLeftRadius: 20, borderBottomRightRadius: 6, backgroundColor: '#5A43C6' },
-  body: { color: '#252129', fontSize: 16, lineHeight: 23 },
-  bodyMine: { color: '#F9F7FF' },
-  chatError: { color: '#A23747', fontSize: 13, lineHeight: 18, paddingHorizontal: 18, paddingVertical: 6 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: '#DDD8CD', backgroundColor: '#F4F2EB' },
-  composerInput: { flex: 1, maxHeight: 120, minHeight: 48, borderRadius: 18, backgroundColor: '#FAF8F2', borderWidth: 1, borderColor: '#D6D1C7', paddingHorizontal: 16, paddingVertical: 12, color: '#1D1A22', fontSize: 16, lineHeight: 22 },
-  send: { width: 48, height: 48, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#5A43C6' },
-  sendDisabled: { backgroundColor: '#C7C1D3' },
-  sendText: { color: '#F9F7FF', fontSize: 27, lineHeight: 30, fontWeight: '500' },
-});
+const s=StyleSheet.create({page:{flex:1,backgroundColor:C.bg},center:{flex:1,alignItems:'center',justifyContent:'center',gap:12,backgroundColor:C.bg},onboard:{flex:1,padding:24,justifyContent:'space-between',backgroundColor:C.bg},logo:{width:54,height:54,paddingTop:15,textAlign:'center',borderRadius:18,overflow:'hidden',backgroundColor:C.ink,color:C.bg,fontWeight:'900'},kicker:{color:C.accent,fontSize:11,lineHeight:16,fontWeight:'900',letterSpacing:1.2},hero:{fontSize:42,lineHeight:47,fontWeight:'900',letterSpacing:-1.3,color:C.ink,marginTop:8},copy:{fontSize:17,lineHeight:26,color:'#625E69',marginTop:16},stack:{gap:12},input:{minHeight:56,borderWidth:1,borderColor:'#D6D1C7',borderRadius:18,paddingHorizontal:17,backgroundColor:C.surface,color:C.ink,fontSize:17},primary:{minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',backgroundColor:C.accent},primaryText:{color:'#F9F7FF',fontSize:16,fontWeight:'900'},err:{color:C.danger,fontSize:13},muted:{color:C.muted,fontSize:14,lineHeight:20},top:{padding:20,paddingBottom:17,flexDirection:'row',justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderColor:C.line},bigTitle:{fontSize:30,lineHeight:36,fontWeight:'900',letterSpacing:-.8,color:C.ink},content:{padding:16,paddingBottom:32},item:{minHeight:76,flexDirection:'row',alignItems:'center',gap:13,borderBottomWidth:1,borderColor:C.line},roomIcon:{width:48,height:48,borderRadius:17,alignItems:'center',justifyContent:'center'},roomEmoji:{fontSize:22,color:C.ink},itemText:{flex:1},itemTitle:{fontSize:17,lineHeight:23,fontWeight:'800',color:C.ink},chev:{fontSize:30,color:C.muted},tabs:{height:74,flexDirection:'row',borderTopWidth:1,borderColor:C.line,backgroundColor:C.bg},tab:{flex:1,alignItems:'center',justifyContent:'center',gap:2},tabIcon:{fontSize:21,color:C.muted},tabText:{fontSize:11,fontWeight:'800',color:C.muted},tabOn:{color:C.accent},avatar:{alignItems:'center',justifyContent:'center',backgroundColor:'#E5E0F5'},avatarText:{fontWeight:'900',color:C.accent},profile:{alignItems:'center',gap:16,paddingTop:20},avatarAction:{color:C.accent,fontSize:13,fontWeight:'800',textAlign:'center',marginTop:7},profile input:{alignSelf:'stretch'},note:{color:C.muted,fontSize:13},chatHead:{minHeight:80,padding:12,flexDirection:'row',alignItems:'center',gap:11,borderBottomWidth:1,borderColor:C.line},back:{width:42,height:42,alignItems:'center',justifyContent:'center'},backText:{fontSize:38,lineHeight:40,color:C.ink},title:{fontSize:22,lineHeight:28,fontWeight:'900',color:C.ink},msgs:{flexGrow:1,padding:16,gap:16},empty:{flex:1,minHeight:260,alignItems:'center',justifyContent:'center'},emptyTitle:{fontSize:23,fontWeight:'900',color:C.ink},msgRow:{maxWidth:'84%',alignSelf:'flex-start',gap:4},msgMine:{alignSelf:'flex-end',alignItems:'flex-end'},author:{fontSize:11,fontWeight:'800',color:C.muted,paddingHorizontal:6},bubble:{paddingHorizontal:15,paddingVertical:11,borderRadius:20,borderBottomLeftRadius:6,backgroundColor:C.soft},bubbleMine:{borderBottomLeftRadius:20,borderBottomRightRadius:6,backgroundColor:C.accent},body:{fontSize:16,lineHeight:23,color:C.ink},bodyMine:{color:'#F9F7FF'},composer:{flexDirection:'row',alignItems:'flex-end',gap:9,padding:11,borderTopWidth:1,borderColor:C.line},composeInput:{flex:1,minHeight:48,maxHeight:112,borderWidth:1,borderColor:'#D6D1C7',borderRadius:18,paddingHorizontal:15,paddingVertical:12,backgroundColor:C.surface,fontSize:16,color:C.ink},send:{width:48,height:48,borderRadius:18,alignItems:'center',justifyContent:'center',backgroundColor:C.accent},disabled:{backgroundColor:'#C7C1D3'},sendText:{fontSize:27,color:'#F9F7FF'}});
