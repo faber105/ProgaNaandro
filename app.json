@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Тихий чат",
+    "slug": "proga-naandro",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.faber105.proganaandro",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#F4F2EB"
+      }
+    },
+    "plugins": [],
+    "extra": {
+      "minAndroidSdk": 24
+    }
+  }
+}
