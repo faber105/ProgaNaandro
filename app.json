@@ -7,7 +7,6 @@
     "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "orientation": "portrait",
     "android": {
       "package": "com.faber105.proganaandro",
       "versionCode": 2,
