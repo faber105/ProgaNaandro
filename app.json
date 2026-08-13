@@ -14,6 +14,9 @@
       "adaptiveIcon": { "backgroundColor": "#F4F2EB" }
     },
     "plugins": [["expo-image-picker", { "photosPermission": "Разрешите выбрать аватар для профиля." }]],
-    "extra": { "minAndroidSdk": 24 }
+    "extra": {
+      "minAndroidSdk": 24,
+      "eas": { "projectId": "742def3c-ab3f-4f20-86a9-1ca62296a6df" }
+    }
   }
 }
