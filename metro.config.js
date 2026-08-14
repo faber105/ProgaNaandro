@@ -8,6 +8,7 @@ config.resolver.extraNodeModules = {
   buffer: require.resolve('buffer'),
   process: require.resolve('process/browser'),
   util: require.resolve('util'),
+  zlib: require.resolve('browserify-zlib'),
 };
 
 config.serializer.getModulesRunBeforeMainModule = () => [
