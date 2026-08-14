@@ -18,7 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install --no-package-lock
+      - name: Generate deterministic npm lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
