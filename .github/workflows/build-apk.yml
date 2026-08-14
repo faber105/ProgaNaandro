@@ -18,12 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
+      - run: npm install --no-package-lock
       - name: Validate Android JavaScript bundle
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://vxqdwdkzaryrvmhjwsdh.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-        run: npx expo export --platform android --output-dir dist
+        run: npx expo export --clear --platform android --output-dir dist
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
